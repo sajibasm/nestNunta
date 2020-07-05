@@ -8,16 +8,17 @@ import * as bcrypt from 'bcrypt';
 
 import { AuthService } from './../auth/auth.service';
 import { CreateForgotPasswordDto } from './dto/create-forgot-password.dto';
-import { CreateUserDto } from './dto/create-user.dto';
-import { VerifyUuidDto } from './dto/verify-uuid.dto';
-import { RefreshAccessTokenDto } from './dto/refresh-access-token.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { LoginUserDto } from './dto/login-user.dto';
+import { Singup } from './dto/singup';
+import { VerifyUuid } from './dto/verify.uuid';
+import { RefreshAccessToken } from './dto/refresh-access.token';
+import { ResetPassword } from './dto/reset.password';
+import { Login } from './dto/login';
 
 import { ForgotPassword } from './interfaces/forgot-password.interface';
 import { User } from './interfaces/user.interface';
-import {Success} from './interfaces/response/success';
-import {Profiler} from 'inspector';
+import {UserEntity} from './response/UserEntity';
+import {ForgetResetPasswordEntity} from './response/ForgetResetPassword';
+import {RefreshAccessTokenRes} from './response/RefreshAccessTokenRes';
 
 @Injectable()
 export class UserService {
@@ -33,72 +34,60 @@ export class UserService {
         ) {}
 
     // Create User
-    async create(req: Request, createUserDto: CreateUserDto): Promise<Success> {
+    async create(req: Request, createUserDto: Singup): Promise<UserEntity> {
         const user = new this.userModel(createUserDto);
         await this.isEmailUnique(user.email);
         this.setRegistrationInfo(user);
         await user.save();
-        return this.successInfo(req, user);
+        return this.userResponse(req, user);
     }
 
     // Login
-    async login(req: Request, loginUserDto: LoginUserDto): Promise<Success> {
+    async login(req: Request, loginUserDto: Login): Promise<UserEntity> {
         const user = await this.findUserByEmail(loginUserDto.email);
         this.isUserBlocked(user);
         await this.checkPassword(loginUserDto.password, user);
         await this.passwordsAreMatch(user);
-        return this.successInfo(req, user);
+        return this.userResponse(req, user);
     }
 
     // RefreshAccessToken
-    async refreshAccessToken(refreshAccessTokenDto: RefreshAccessTokenDto) {
+    async refreshAccessToken(refreshAccessTokenDto: RefreshAccessToken): Promise<RefreshAccessTokenRes> {
         const userId = await this.authService.findRefreshToken(refreshAccessTokenDto.refreshToken);
         const user = await this.userModel.findById(userId);
         if (!user) {
             throw new BadRequestException('Bad request');
         }
-        return {
-            accessToken: await this.authService.createAccessToken(user),
-        };
+
+        return new RefreshAccessTokenRes({ accessToken: await this.authService.createAccessToken(user)});
     }
 
     // VerifyEmail
-    async verifyEmail(req: Request, verifyUuidDto: VerifyUuidDto): Promise<Success> {
+    async verifyEmail(req: Request, verifyUuidDto: VerifyUuid): Promise<UserEntity> {
         const user = await this.findByVerification(verifyUuidDto.verification);
         await this.setUserAsVerified(user);
-        return this.successInfo(req, user);
+        return this.userResponse(req, user);
     }
 
-
-    // forgetPassword
-    // async forgotPassword(req: Request, createForgotPasswordDto: CreateForgotPasswordDto) {
-    //     await this.findByEmail(createForgotPasswordDto.email);
-    //     await this.saveForgotPassword(req, createForgotPasswordDto);
-    //     return {
-    //         email: createForgotPasswordDto.email,
-    //         message: 'verification sent.',
-    //     };
-    // }
-
     // forgetPasswordVerify
-    async forgotPasswordVerify(req: Request, verifyUuidDto: VerifyUuidDto) {
+    async forgotPasswordVerify(req: Request, verifyUuidDto: VerifyUuid): Promise<ForgetResetPasswordEntity> {
         const forgotPassword = await this.findForgotPasswordByUuid(verifyUuidDto);
         await this.setForgotPasswordFirstUsed(req, forgotPassword);
-        return {
+        return new ForgetResetPasswordEntity({
             email: forgotPassword.email,
-            message: 'now reset your password.',
-        };
+            message: 'now reset your password.'
+        });
     }
 
     // resetPassword
-    async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    async resetPassword(resetPasswordDto: ResetPassword): Promise<ForgetResetPasswordEntity> {
         const forgotPassword = await this.findForgotPasswordByEmail(resetPasswordDto);
         await this.setForgotPasswordFinalUsed(forgotPassword);
         await this.resetUserPassword(resetPasswordDto);
-        return {
+        return new ForgetResetPasswordEntity({
             email: resetPasswordDto.email,
             message: 'password successfully changed.',
-        };
+        });
     }
 
 
@@ -108,9 +97,9 @@ export class UserService {
 
    // All Private Method
     private async isEmailUnique(email: string) {
-        const user = await this.userModel.findOne({email, verified: true});
+        const user = await this.userModel.findOne({email});
         if (user) {
-            throw new BadRequestException('Email must be unique.');
+            throw new BadRequestException(`${email} address already in use `);
         }
     }
 
@@ -119,14 +108,12 @@ export class UserService {
         user.verificationExpires = addHours(new Date(), this.HOURS_TO_VERIFY);
     }
 
-    private async successInfo(req, user): Promise<Success> {
-        return  {
-            fullName: user.fullName,
-            email: user.email,
+    private async userResponse(req, user): Promise<UserEntity> {
+        return new UserEntity({
+            ...user._doc,
             accessToken: await this.authService.createAccessToken(user),
-            refreshToken: await this.authService.createRefreshToken(req, user._id),
-            // verified: user.verified,
-        };
+            refreshToken: await this.authService.createRefreshToken(req, user._id)
+        });
     }
 
     private async findByVerification(verification: string): Promise<User> {
@@ -205,7 +192,7 @@ export class UserService {
     //     await forgotPassword.save();
     // }
 
-    private async findForgotPasswordByUuid(verifyUuidDto: VerifyUuidDto): Promise<ForgotPassword> {
+    private async findForgotPasswordByUuid(verifyUuidDto: VerifyUuid): Promise<ForgotPassword> {
         const forgotPassword = await this.forgotPasswordModel.findOne({
             verification: verifyUuidDto.verification,
             firstUsed: false,
@@ -226,7 +213,7 @@ export class UserService {
         await forgotPassword.save();
     }
 
-    private async findForgotPasswordByEmail(resetPasswordDto: ResetPasswordDto): Promise<ForgotPassword> {
+    private async findForgotPasswordByEmail(resetPasswordDto: ResetPassword): Promise<ForgotPassword> {
         const forgotPassword = await this.forgotPasswordModel.findOne({
             email: resetPasswordDto.email,
             firstUsed: true,
@@ -244,7 +231,7 @@ export class UserService {
         await forgotPassword.save();
     }
 
-    private async resetUserPassword(resetPasswordDto: ResetPasswordDto) {
+    private async resetUserPassword(resetPasswordDto: ResetPassword) {
         const user = await this.userModel.findOne({
             email: resetPasswordDto.email,
             verified: true,

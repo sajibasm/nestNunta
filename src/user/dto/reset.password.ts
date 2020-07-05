@@ -1,7 +1,7 @@
 import { IsNotEmpty, MinLength, MaxLength, IsEmail, IsString } from 'class-validator';
 import { ApiModelProperty } from '@nestjs/swagger';
 
-export class ResetPasswordDto {
+export class ResetPassword {
     @ApiModelProperty({
       example: 'sajib.cse03@gmail.com',
       description: 'The email of the User',

@@ -1,7 +1,7 @@
 import { IsNotEmpty, MinLength, MaxLength, IsEmail, IsString } from 'class-validator';
 import { ApiModelProperty } from '@nestjs/swagger';
 
-export class LoginUserDto {
+export class Login {
 
     @ApiModelProperty({
       example: 'sajib.cse03@gmail.com',

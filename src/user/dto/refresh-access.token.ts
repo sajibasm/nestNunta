@@ -1,7 +1,7 @@
 import { IsNotEmpty,  IsUUID } from 'class-validator';
 import { ApiModelProperty } from '@nestjs/swagger';
 
-export class RefreshAccessTokenDto {
+export class RefreshAccessToken {
     @ApiModelProperty({
         description: 'uuid for refresh token',
         format: 'uuid',
