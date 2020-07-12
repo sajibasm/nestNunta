@@ -1,24 +1,28 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
-import { Request } from 'express';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { v4 } from 'uuid';
-import { addHours } from 'date-fns';
+import {Injectable, BadRequestException, NotFoundException, ConflictException} from '@nestjs/common';
+import {Request} from 'express';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model} from 'mongoose';
+import {v4} from 'uuid';
+import {addHours} from 'date-fns';
 import * as bcrypt from 'bcrypt';
 
-import { AuthService } from './../auth/auth.service';
-import { CreateForgotPasswordDto } from './dto/create-forgot-password.dto';
-import { Singup } from './dto/singup';
-import { VerifyUuid } from './dto/verify.uuid';
-import { RefreshAccessToken } from './dto/refresh-access.token';
-import { ResetPassword } from './dto/reset.password';
-import { Login } from './dto/login';
+import {AuthService} from '../auth/auth.service';
+import {TrackService} from "../track/track.service";
+import {CreateForgotPasswordDto} from './dto/create-forgot-password.dto';
 
-import { ForgotPassword } from './interfaces/forgot-password.interface';
-import { User } from './interfaces/user.interface';
-import {UserEntity} from './response/UserEntity';
-import {ForgetResetPasswordEntity} from './response/ForgetResetPassword';
-import {RefreshAccessTokenRes} from './response/RefreshAccessTokenRes';
+import {Singup} from './dto/singup';
+import {VerifyUuid} from './dto/verify.uuid';
+import {RefreshAccessToken} from './dto/refresh-access.token';
+import {ResetPassword} from './dto/reset.password';
+import {Login} from './dto/login';
+
+import {ForgotPassword} from './interfaces/forgot-password.interface';
+import {User} from './interfaces/user.interface';
+import {UserSerialize} from "./serialize/UserSerialize";
+import {RefreshAccessTokenSerialize} from "./serialize/RefreshAccessTokenSerialize";
+import {ForgetResetPasswordSerialize} from "./serialize/ForgetResetPasswordSerialize";
+import {TokenSerialize} from "./serialize/TokenSerialize";
+
 
 @Injectable()
 export class UserService {
@@ -31,71 +35,73 @@ export class UserService {
         @InjectModel('User') private readonly userModel: Model<User>,
         @InjectModel('ForgotPassword') private readonly forgotPasswordModel: Model<ForgotPassword>,
         private readonly authService: AuthService,
-        ) {}
+        //private readonly trackService: TrackService
+    ) {
+    }
 
     // Create User
-    async create(req: Request, createUserDto: Singup): Promise<UserEntity> {
+    async create(req: Request, createUserDto: Singup): Promise<UserSerialize> {
         const user = new this.userModel(createUserDto);
         await this.isEmailUnique(user.email);
         this.setRegistrationInfo(user);
-        await user.save();
-        return this.userResponse(req, user);
+        this.setUserAsVerified(user);
+        return this.userResponse(req, user, false);
     }
 
     // Login
-    async login(req: Request, loginUserDto: Login): Promise<UserEntity> {
+    async login(req: Request, loginUserDto: Login): Promise<UserSerialize> {
         const user = await this.findUserByEmail(loginUserDto.email);
         this.isUserBlocked(user);
         await this.checkPassword(loginUserDto.password, user);
         await this.passwordsAreMatch(user);
+
         return this.userResponse(req, user);
     }
 
     // RefreshAccessToken
-    async refreshAccessToken(refreshAccessTokenDto: RefreshAccessToken): Promise<RefreshAccessTokenRes> {
+    async refreshAccessToken(refreshAccessTokenDto: RefreshAccessToken): Promise<RefreshAccessTokenSerialize> {
         const userId = await this.authService.findRefreshToken(refreshAccessTokenDto.refreshToken);
         const user = await this.userModel.findById(userId);
         if (!user) {
             throw new BadRequestException('Bad request');
         }
 
-        return new RefreshAccessTokenRes({ accessToken: await this.authService.createAccessToken(user)});
+        return new RefreshAccessTokenSerialize({accessToken: await this.authService.createAccessToken(user)});
     }
 
     // VerifyEmail
-    async verifyEmail(req: Request, verifyUuidDto: VerifyUuid): Promise<UserEntity> {
+    async verifyEmail(req: Request, verifyUuidDto: VerifyUuid): Promise<UserSerialize> {
         const user = await this.findByVerification(verifyUuidDto.verification);
         await this.setUserAsVerified(user);
         return this.userResponse(req, user);
     }
 
     // forgetPasswordVerify
-    async forgotPasswordVerify(req: Request, verifyUuidDto: VerifyUuid): Promise<ForgetResetPasswordEntity> {
+    async forgotPasswordVerify(req: Request, verifyUuidDto: VerifyUuid): Promise<ForgetResetPasswordSerialize> {
         const forgotPassword = await this.findForgotPasswordByUuid(verifyUuidDto);
         await this.setForgotPasswordFirstUsed(req, forgotPassword);
-        return new ForgetResetPasswordEntity({
+        return new ForgetResetPasswordSerialize({
             email: forgotPassword.email,
             message: 'now reset your password.'
         });
     }
 
     // resetPassword
-    async resetPassword(resetPasswordDto: ResetPassword): Promise<ForgetResetPasswordEntity> {
+    async resetPassword(resetPasswordDto: ResetPassword): Promise<ForgetResetPasswordSerialize> {
         const forgotPassword = await this.findForgotPasswordByEmail(resetPasswordDto);
         await this.setForgotPasswordFinalUsed(forgotPassword);
         await this.resetUserPassword(resetPasswordDto);
-        return new ForgetResetPasswordEntity({
+        return new ForgetResetPasswordSerialize({
             email: resetPasswordDto.email,
             message: 'password successfully changed.',
         });
     }
 
-
     findAll(): any {
         return {hello: 'world'};
-      }
+    }
 
-   // All Private Method
+    // All Private Method
     private async isEmailUnique(email: string) {
         const user = await this.userModel.findOne({email});
         if (user) {
@@ -108,16 +114,25 @@ export class UserService {
         user.verificationExpires = addHours(new Date(), this.HOURS_TO_VERIFY);
     }
 
-    private async userResponse(req, user): Promise<UserEntity> {
-        return new UserEntity({
+    private async userResponse(req, user, isFull = true): Promise<UserSerialize> {
+        return new UserSerialize({
             ...user._doc,
-            accessToken: await this.authService.createAccessToken(user),
-            refreshToken: await this.authService.createRefreshToken(req, user._id)
+            ...new TokenSerialize({
+                accessToken: await this.authService.createAccessToken(user),
+                expiresIn: process.env.JWT_EXPIRATION,
+                refreshToken: await this.authService.createRefreshToken(req, user._id)
+            }),
+            //settings: await this.trackService.getUserSettings()
         });
+
     }
 
     private async findByVerification(verification: string): Promise<User> {
-        const user = await this.userModel.findOne({verification, verified: false, verificationExpires: {$gt: new Date()}});
+        const user = await this.userModel.findOne({
+            verification,
+            verified: false,
+            verificationExpires: {$gt: new Date()}
+        });
         if (!user) {
             throw new BadRequestException('Bad request.');
         }
@@ -140,10 +155,10 @@ export class UserService {
     private async findUserByEmail(email: string): Promise<User> {
         const user = await this.userModel.findOne({email, verified: true});
         if (!user) {
-          throw new NotFoundException('Wrong email or password.');
+            throw new NotFoundException('Wrong email or password.');
         }
         return user;
-      }
+    }
 
     private async checkPassword(attemptPass: string, user) {
         const match = await bcrypt.compare(attemptPass, user.password);
@@ -152,7 +167,7 @@ export class UserService {
             throw new NotFoundException('Wrong email or password.');
         }
         return match;
-      }
+    }
 
     private isUserBlocked(user) {
         if (user.blockExpires > Date.now()) {
@@ -175,7 +190,7 @@ export class UserService {
     }
 
     private async passwordsAreMatch(user) {
-        user.loginAttempts = 0 ;
+        user.loginAttempts = 0;
         await user.save();
     }
 

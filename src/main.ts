@@ -13,6 +13,8 @@ async function bootstrap() {
         // disableErrorMessages: true,
     }));
 
+    //app.setGlobalPrefix('/api/v1')
+
     // swagger Api Doc
     const options = new DocumentBuilder()
         .setTitle('API')

@@ -1,9 +1,9 @@
 import {Exclude, Expose} from 'class-transformer';
 
-export class ForgetResetPasswordEntity {
+export class ForgetResetPasswordSerialize {
     email: string;
     message: string;
-    constructor(partial: Partial<ForgetResetPasswordEntity>) {
+    constructor(partial: Partial<ForgetResetPasswordSerialize>) {
         Object.assign(this, partial);
     }
 }

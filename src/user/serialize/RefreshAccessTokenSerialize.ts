@@ -1,8 +1,8 @@
 import {Exclude, Expose} from 'class-transformer';
 
-export class RefreshAccessTokenRes {
+export class RefreshAccessTokenSerialize {
     accessToken: string;
-    constructor(partial: Partial<RefreshAccessTokenRes>) {
+    constructor(partial: Partial<RefreshAccessTokenSerialize>) {
         Object.assign(this, partial);
     }
 }

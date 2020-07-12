@@ -1,20 +1,22 @@
 
-import {Request} from 'express';
-import {Login} from './dto/login';
-import {Controller, Get, Post, Body, UseGuards, Req, HttpCode, HttpStatus, ClassSerializerInterceptor, UseInterceptors} from '@nestjs/common';
-import {Singup} from './dto/singup';
-import {VerifyUuid} from './dto/verify.uuid';
-import {UserService} from './user.service';
-import {AuthGuard, PassportModule} from '@nestjs/passport';
-import {RefreshAccessToken} from './dto/refresh-access.token';
-import { ApiCreatedResponse, ApiOkResponse, ApiUseTags, ApiBearerAuth, ApiImplicitHeader, ApiOperation, ApiResponse} from '@nestjs/swagger';
-import {RolesGuard} from 'src/auth/guards/roles.guard';
-import {UserEntity} from './response/UserEntity';
-import {ForgetResetPasswordEntity} from './response/ForgetResetPassword';
+import { Request } from 'express';
+import { Controller, Get, Post, Body, UseGuards, Req, HttpCode, HttpStatus, ClassSerializerInterceptor, UseInterceptors } from '@nestjs/common';
+import { UserService } from './user.service';
+import { AuthGuard, PassportModule } from '@nestjs/passport';
 
-import {Roles} from './../auth/decorators/roles.decorator';
-import {ResetPassword} from './dto/reset.password';
-import {RefreshAccessTokenRes} from './response/RefreshAccessTokenRes';
+import { ApiCreatedResponse, ApiOkResponse, ApiUseTags, ApiBearerAuth, ApiImplicitHeader, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+
+import { Login } from './dto/login';
+import { Singup } from './dto/singup';
+import { VerifyUuid } from './dto/verify.uuid';
+import { ResetPassword } from './dto/reset.password';
+import { RefreshAccessToken } from './dto/refresh-access.token';
+
+
+import { ForgetResetPasswordSerialize } from './serialize/ForgetResetPasswordSerialize';
+import { UserSerialize } from './serialize/UserSerialize';
+import { RefreshAccessTokenSerialize } from './serialize/RefreshAccessTokenSerialize';
 
 @ApiUseTags('User')
 @Controller('user')
@@ -27,8 +29,8 @@ export class UserController {
     @UseInterceptors(ClassSerializerInterceptor)
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({title: 'Singup'})
-    @ApiCreatedResponse({})
-    async register(@Req() req: Request, @Body() createUserDto: Singup): Promise<UserEntity> {
+    @ApiCreatedResponse({  description: 'The record has been successfully created.', type: UserSerialize })
+    async register(@Req() req: Request, @Body() createUserDto: Singup): Promise<UserSerialize> {
         return await this.userService.create(req, createUserDto);
     }
 
@@ -46,7 +48,7 @@ export class UserController {
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({title: 'Refresh Access Token with refresh token'})
     @ApiCreatedResponse({})
-    async refreshAccessToken(@Body() refreshAccessTokenDto: RefreshAccessToken): Promise<RefreshAccessTokenRes> {
+    async refreshAccessToken(@Body() refreshAccessTokenDto: RefreshAccessToken): Promise<RefreshAccessTokenSerialize> {
         return await this.userService.refreshAccessToken(refreshAccessTokenDto);
     }
 
@@ -55,7 +57,7 @@ export class UserController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({title: 'Verify Email'})
     @ApiOkResponse({})
-    async verifyEmail(@Req() req: Request, @Body() verifyUuidDto: VerifyUuid): Promise<UserEntity> {
+    async verifyEmail(@Req() req: Request, @Body() verifyUuidDto: VerifyUuid): Promise<UserSerialize> {
         return await this.userService.verifyEmail(req, verifyUuidDto);
     }
 
@@ -72,7 +74,7 @@ export class UserController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({title: 'Verfiy forget password code'})
     @ApiOkResponse({})
-    async forgotPasswordVerify(@Req() req: Request, @Body() verifyUuidDto: VerifyUuid): Promise<ForgetResetPasswordEntity> {
+    async forgotPasswordVerify(@Req() req: Request, @Body() verifyUuidDto: VerifyUuid): Promise<ForgetResetPasswordSerialize> {
         return await this.userService.forgotPasswordVerify(req, verifyUuidDto);
     }
 
@@ -83,7 +85,7 @@ export class UserController {
     @ApiBearerAuth()
     @ApiImplicitHeader({name: 'Bearer', description: 'the token we need for auth.'})
     @ApiOkResponse({})
-    async resetPassword(@Body() resetPasswordDto: ResetPassword): Promise<ForgetResetPasswordEntity> {
+    async resetPassword(@Body() resetPasswordDto: ResetPassword): Promise<ForgetResetPasswordSerialize> {
         return await this.userService.resetPassword(resetPasswordDto);
     }
 

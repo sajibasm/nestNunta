@@ -58,9 +58,8 @@ UserSchema.pre('save', async function(next: mongoose.HookNextFunction) {
         return next();
       }
       // tslint:disable-next-line:no-string-literal
-      const hashed = await bcrypt.hash(this['password'], 10);
       // tslint:disable-next-line:no-string-literal
-      this['password'] = hashed;
+      this['password'] = await bcrypt.hash(this['password'], 10);
       return next();
     } catch (err) {
       return next(err);

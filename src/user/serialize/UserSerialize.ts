@@ -1,12 +1,13 @@
-import {Exclude, Expose} from 'class-transformer';
+import {Exclude, Expose, Type} from 'class-transformer';
+import {UserSettingsSerialize} from "../../track/serialize/UserSettingsSerialize";
+import {TokenSerialize} from "./TokenSerialize";
 
-export class UserEntity {
+export class UserSerialize {
 
     email: string;
     fullName: string;
-    accessToken: string;
-    refreshToken: string;
 
+    @Expose({ name: "uid" })
     @Exclude()
     _id: string;
 
@@ -37,13 +38,18 @@ export class UserEntity {
     @Exclude()
     updatedAt: string;
 
+
+    @Type(() => TokenSerialize)
+    token: TokenSerialize
+
+    @Type(() => UserSettingsSerialize)
+    settings: UserSettingsSerialize;
+
     // @Expose()
     // get nick(): string {
     //     return `${this.fullName}-ASM`;
     // }
-
-
-    constructor(partial: Partial<UserEntity>) {
+    constructor(partial: Partial<UserSerialize>) {
         Object.assign(this, partial);
     }
 }
